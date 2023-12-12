@@ -4,5 +4,7 @@
 Notes and exercises about Games 101.
 
 ## Maintainer
-main - CoSidian
-go - Frederica
+
+main branch- CoSidian
+
+go branch - Frederica
