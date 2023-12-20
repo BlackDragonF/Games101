@@ -10,258 +10,267 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-/* declare basic types */
-type Buffers int64
+type ClearSignal int64
 
 const (
-	Color Buffers = 1
-	Depth Buffers = 2
+	COLOR ClearSignal = iota
+	DEPTH ClearSignal = iota
 )
 
-type Primitive int64
-
-const (
-	Line Primitive = iota
-	Triangle
-)
-
-type posBufId struct {
-	posId int64
+// STRUCT OF VertexBufferElement AND ITS CONSTRUCTOR
+type VertexBufferElement struct {
+	position common.Vec3f // (x, y, z)
+	color    common.Vec4f // (r, g, b, a) => 0 <= r, g, b, a <= 1
+	// TODO: Add more buffers
+	// for example:
+	/*
+	  normalLine    []common.Vec3f // (nx, ny, nz)
+	  texture       []common.Vec2f // (u, v)
+	*/
 }
 
-func NewPosBufId(id int64) posBufId {
-	return posBufId{
-		posId: id,
+func NewVertexBufferElement() VertexBufferElement {
+	return VertexBufferElement{
+		position: common.NewVec3f(),
+		color:    common.NewVec4f(),
 	}
 }
 
-type indBufId struct {
-	indId int64
+// STRUCT OF IndexBufferElement AND ITS CONSTRUCTOR
+// Type of Primitive
+type PrimitiveType int
+
+const (
+	LineList     PrimitiveType = iota
+	TriangleList PrimitiveType = iota
+	// TODO: Add more primitive types
+	// for example:
+	/*
+	  LineStrip PrimitiveType = iota
+	  TriangleStrip PrimitiveType = iota
+	  TriangleFan PrimitiveType = iota
+	*/
+)
+
+// STRUCT OF FrameBufferElement AND ITS CONSTROCTOR
+type FrameBufferElement struct {
+	color common.Vec4f // (r, g, b, a) => 0 <= r, g, b, a <= 1
+	depth float64
+	// TODO: Add more buffers
+	// for example: tencil, accumulation...
 }
 
-func NewIndBufId(id int64) indBufId {
-	return indBufId{
-		indId: id,
+func NewFrameBufferElement() FrameBufferElement {
+	return FrameBufferElement{
+		color: common.NewVec4f(),
+		depth: math.Inf(1),
 	}
 }
 
-/* declare Rasterizer */
+func (fe *FrameBufferElement) GetColor() common.Vec4f {
+	return fe.color
+}
+
+// Rasterizer type
 type Rasterizer struct {
-	model      *mat.Dense
-	view       *mat.Dense
-	projection *mat.Dense
+	// Screen size: width x height pixels
+	width  int // num of pixels per row
+	height int // num of pixels per col
+	// Three Matrix: MVP
+	modelMat      *mat.Dense // Mat(m), size: 4x4
+	viewMat       *mat.Dense // Mat(v), size: 4x4
+	projectionMat *mat.Dense // Mat(p), size: 4x4
 
-	posBuf map[int64][]common.Vec3f
-	indBuf map[int64][]common.Vec3i
+	// Some buffers
+	// TODO: Add more buffers
+	// for example: constBuffer, texture Buffer, pixel Buffer...
+	vertexBuf []VertexBufferElement
+	indexBuf  []common.Vec3i // NOTE THAT Vec3i is wrong in a more general situation. Beacuse each element in indexBuf (a vector of n dimention) refers to n vertexs in vertexBuf.
+	frameBuf  []FrameBufferElement
+	primitive PrimitiveType
 
-	frameBuf []common.Vec3f
-	depthBuf []float64
-
-	width  int64
-	height int64
-	nextId int64
+	// index is used for vertexBuf and indexBuf
+	IndBufInd int
+	VerBufInd int
 }
 
-func NewRasterizer(w, h int64) Rasterizer {
+func NewRasterizer(w, h int, primitive PrimitiveType) Rasterizer {
 	return Rasterizer{
-		model:      mat.NewDense(4, 4, []float64{}),
-		view:       mat.NewDense(4, 4, []float64{}),
-		projection: mat.NewDense(4, 4, []float64{}),
-
-		posBuf: make(map[int64][]common.Vec3f),
-		indBuf: make(map[int64][]common.Vec3i),
-
-		frameBuf: []common.Vec3f{},
-		depthBuf: []float64{},
-
-		width:  w,
-		height: h,
-
-		nextId: 0,
+		width:         w,
+		height:        h,
+		modelMat:      mat.NewDense(4, 4, nil),
+		viewMat:       mat.NewDense(4, 4, nil),
+		projectionMat: mat.NewDense(4, 4, nil),
+		vertexBuf:     make([]VertexBufferElement, 1),
+		indexBuf:      make([]common.Vec3i, 1),
+		frameBuf:      make([]FrameBufferElement, w*h),
+		primitive:     primitive,
+		IndBufInd:     0,
+		VerBufInd:     0,
 	}
 }
 
-/* methods of Rasterizer  */
-func (rasterizer *Rasterizer) Clear(buff Buffers) {
-	if (buff & Color) == Color {
-		for i := 0; i < len(rasterizer.frameBuf); i++ {
-			rasterizer.frameBuf[i] = common.NewVec3f()
+func (r *Rasterizer) GetSize() (int, int) {
+	return r.width, r.height
+}
+
+func (r *Rasterizer) SetPrimitive(primitive PrimitiveType) {
+	r.primitive = primitive
+}
+
+// Only load the position of the vertexs.
+func (r *Rasterizer) LoadVerPosAndInd(positions []common.Vec3f, indices []common.Vec3i) {
+	r.VerBufInd = len(positions)
+	r.IndBufInd = len(indices)
+	r.vertexBuf = make([]VertexBufferElement, r.VerBufInd)
+	r.indexBuf = make([]common.Vec3i, r.IndBufInd)
+	for i := 0; i < r.VerBufInd; i++ {
+		r.vertexBuf[i].position = positions[i]
+	}
+	for i := 0; i < r.IndBufInd; i++ {
+		r.indexBuf[i] = indices[i]
+	}
+}
+
+func (r *Rasterizer) ClearFrameBuf(signal ClearSignal) {
+	if signal == 0 {
+		return
+	}
+	if (signal & COLOR) == COLOR {
+		for i := 0; i < len(r.frameBuf); i++ {
+			r.frameBuf[i].color = common.NewVec4f()
 		}
 	}
-	if (buff & Depth) == Depth {
-		for i := 0; i < len(rasterizer.depthBuf); i++ {
-			rasterizer.depthBuf[i] = math.Inf(1)
+	if (signal & DEPTH) == DEPTH {
+		for i := 0; i < len(r.frameBuf); i++ {
+			r.frameBuf[i].depth = math.Inf(1)
 		}
 	}
 }
 
-/* some setter methods */
-func (rasterizer *Rasterizer) SetModel(m *mat.Dense) error {
+// map (x, y) of point to (x', y') of screen
+func (r *Rasterizer) GetFrameInd(x, y int) int {
+	return x* r.width+ y
+}
+
+func (r *Rasterizer) setPixel(point common.Vec3f, color common.Vec4f) error {
+	x := point[0]
+	y := point[1]
+	if x < 0 || x >= float64(r.width) || y < 0 || y >= float64(r.height) {
+		return errors.New(fmt.Sprintf("rasterizer: wrong point. Got (%.3f, %.3f), expected range: (0, 0) to (%d, %d)", x, y, r.width, r.height))
+	}
+	x = math.Floor(x)
+	y = math.Floor(y)
+	ind := r.GetFrameInd(int(x), int(y))
+	if ind >= len(r.frameBuf) {
+		return errors.New(fmt.Sprintf("rasterizer: index out of range. Got: %d, max: %d", ind, r.width*r.height))
+	}
+	r.frameBuf[ind].color = color
+	return nil
+}
+
+func (r *Rasterizer) GetFrameBuf() []FrameBufferElement {
+	return r.frameBuf
+}
+
+// SETTERs OF MATS
+func (r *Rasterizer) SetModelMat(m *mat.Dense) error {
 	if r, c := m.Dims(); r != 4 || c != 4 {
-		return errors.New(fmt.Sprintf("rasterizer: wrong size of matrix. Got: (%d, %d), expected: (4, 4)", r, c))
+		return errors.New(fmt.Sprintf("rasterizer: wrong dimension of model matrix. Got: %dx%d, expected: 4x4", r, c))
 	}
-	rasterizer.model.CloneFrom(m)
+	r.modelMat = m
 	return nil
 }
 
-func (rasterizer *Rasterizer) SetView(v *mat.Dense) error {
+func (r *Rasterizer) SetViewMat(v *mat.Dense) error {
 	if r, c := v.Dims(); r != 4 || c != 4 {
-		return errors.New(fmt.Sprintf("rasterizer: wrong size of matrix. Got: (%d, %d), expected: (4, 4)", r, c))
+		return errors.New(fmt.Sprintf("rasterizer: wrong dimension of view matrix. Got: %dx%d, expected: 4x4", r, c))
 	}
-	rasterizer.view.CloneFrom(v)
+	r.viewMat = v
 	return nil
 }
 
-func (rasterizer *Rasterizer) SetProjection(p *mat.Dense) error {
+func (r *Rasterizer) SetProjectionMat(p *mat.Dense) error {
 	if r, c := p.Dims(); r != 4 || c != 4 {
-		return errors.New(fmt.Sprintf("rasterizer: wrong size of matrix. Got: (%d, %d), expected: (4, 4)", r, c))
+		return errors.New(fmt.Sprintf("rasterizer: wrong dimension of projection matrix. Got: %dx%d, expected: 4x4", r, c))
 	}
-	rasterizer.projection.CloneFrom(p)
+	r.projectionMat = p
 	return nil
 }
 
-/* some getter methods */
-func (rasterizer *Rasterizer) GetFrameBuf() []common.Vec3f {
-	return rasterizer.frameBuf
-}
+// METHODS ABOUT DRAWING
+func (r *Rasterizer) drawLine(begin, end common.Vec3f, lineColor common.Vec4f) {
+	x1 := int(begin[0])
+	y1 := int(begin[1])
+	x2 := int(end[0])
+	y2 := int(end[1])
 
-func (rasterizer *Rasterizer) GetIndex(x, y int64) int64 {
-	return (rasterizer.height-y)*rasterizer.width + x
-}
+	dx := int(math.Abs(float64(x2 - x1)))
+	dy := int(math.Abs(float64(y2 - y1)))
+	var sx, sy int
 
-func (rasterizer *Rasterizer) GetNextId() int64 {
-	t := rasterizer.nextId
-	rasterizer.nextId++
-	return t
-}
-
-func (rasterizer *Rasterizer) LoadPositions(positions []common.Vec3f) posBufId {
-	id := rasterizer.GetNextId()
-	rasterizer.posBuf[id] = positions
-	return NewPosBufId(id)
-}
-
-func (rasterizer *Rasterizer) LoadIndices(indices []common.Vec3i) indBufId {
-	id := rasterizer.GetNextId()
-	rasterizer.indBuf[id] = indices
-	return NewIndBufId(id)
-}
-
-/* some methods about drawing */
-func (rasterizer *Rasterizer) SetPixel(point common.Vec3f, color common.Vec3f) error {
-	if point[0] < 0 || point[0] >= float64(rasterizer.width) || point[1] < 0 || point[1] >= float64(rasterizer.height) {
-		return errors.New(fmt.Sprintf("rasterizer: wrong range of point. Got: (%f, %f), expected: from (0, 0) to (%d, %d)", point[0], point[1], rasterizer.width, rasterizer.height))
-	}
-	ind := int64((float64(rasterizer.height)-point[1])*float64(rasterizer.width) + point[0])
-	rasterizer.frameBuf[ind] = color
-	return nil
-}
-
-func (rasterizer *Rasterizer) drawLine(begin, end common.Vec3f) {
-	x1 := begin[0]
-	y1 := begin[1]
-	x2 := end[0]
-	y2 := end[1]
-
-	lineColor := common.Vec3f{255., 255., 255.}
-
-	var x, y, xe, ye, dx, dy, dx1, dy1, px, py float64
-
-	dx = x2 - x1
-	dy = y2 - y1
-	dx1 = math.Abs(dx)
-	dy1 = math.Abs(dy)
-	px = 2*dy1 - dx1
-	py = 2*dx1 - dy1
-
-	if dy1 <= dx1 {
-		if dx >= 0 {
-			x = x1
-			y = y1
-			xe = x2
-		} else {
-			x = x2
-			y = y2
-			xe = x1
-		}
-		point := common.Vec3f{x, y, 1.}
-		rasterizer.SetPixel(point, lineColor)
-		for i := 0; x < xe; i++ {
-			x = x + 1
-			if px < 0 {
-				px = px + 2*dy1
-			} else {
-				if (dx < 0 && dy < 0) || (dx > 0 && dy > 0) {
-					y = y + 1
-				} else {
-					y = y - 1
-				}
-				px = px + 2*(dy1-dx1)
-			}
-			point := common.Vec3f{x, y, 1.}
-			rasterizer.SetPixel(point, lineColor)
-		}
+	if x1 < x2 {
+		sx = 1
 	} else {
-		if dy >= 0 {
-			x = x1
-			y = y1
-			ye = y2
-		} else {
-			x = x2
-			y = y2
-			ye = y1
+		sx = -1
+	}
+	if y1 < y2 {
+		sy = 1
+	} else {
+		sy = -1
+	}
+
+	err := dx - dy
+
+	for {
+		point := common.Vec3f{float64(x1), float64(y1), 1.}
+		r.setPixel(point, lineColor)
+
+		if x1 == x2 && y1 == y2 {
+			break
 		}
-		point := common.Vec3f{x, y, 1.}
-		rasterizer.SetPixel(point, lineColor)
-		for i := 0; y < ye; i++ {
-			y = y + 1
-			if py <= 0 {
-				py = py + 2*dx1
-			} else {
-				if (dx < 0 && dy < 0) || (dx > 0 && dy > 0) {
-					x = x + 1
-				} else {
-					x = x - 1
-				}
-				py = py + 2*(dx1-dy1)
-			}
-			point := common.Vec3f{x, y, 1.}
-			rasterizer.SetPixel(point, lineColor)
+
+		e2 := 2 * err
+		if e2 > -dy {
+			err -= dy
+			x1 += sx
+		}
+		if e2 < dx {
+			err += dx
+			y1 += sy
 		}
 	}
 }
 
-func (rasterizer *Rasterizer) rasterizeWireframe(t *triangle.Triangle) {
-	rasterizer.drawLine(t.GetC(), t.GetA())
-	rasterizer.drawLine(t.GetC(), t.GetB())
-	rasterizer.drawLine(t.GetB(), t.GetA())
+func (r *Rasterizer) rasterizeWireframe(t *triangle.Triangle) {
+	color, _ := t.GetColor(0)
+	r.drawLine(t.GetC(), t.GetA(), color)
+	color, _ = t.GetColor(1)
+	r.drawLine(t.GetC(), t.GetB(), color)
+	color, _ = t.GetColor(2)
+	r.drawLine(t.GetB(), t.GetA(), color)
 }
 
-func (rasterizer Rasterizer) Draw(posBuffer posBufId, indBuffer indBufId, _type Primitive) error {
-	if _type != Triangle {
-		return errors.New("Drawing primitives other than triangle is not implemented yet!")
+func (r *Rasterizer) Draw() error {
+	if r.primitive != TriangleList {
+		return errors.New("rasterizer: drawing primitives other than triangle is not implemented yet!")
 	}
-	buf := rasterizer.posBuf[posBuffer.posId]
-	ind := rasterizer.indBuf[indBuffer.indId]
+	vers := r.vertexBuf
+	indices := r.indexBuf
 
-	var f1 float64 = (100. - 0.1) / 2.0
-	var f2 float64 = (100. + 0.1) / 2.0
+	mvp := mat.NewDense(4, 4, nil)
+	mvp.Mul(r.projectionMat, r.viewMat)
+	mvp.Mul(mvp, r.modelMat)
 
-	var mvp mat.Dense
-	mvp.Mul(rasterizer.projection, rasterizer.view)
-	mvp.Mul(&mvp, rasterizer.model)
-
-	for _, i := range ind {
+	for _, ind := range indices {
 		t := triangle.NewTriangle()
+		v1 := vers[ind[0]].position.ToHomoVec(1.)
+		v2 := vers[ind[1]].position.ToHomoVec(1.)
+		v3 := vers[ind[2]].position.ToHomoVec(1.)
 
-		v1 := buf[i[0]].ToHomoVec(1.)
-		v2 := buf[i[1]].ToHomoVec(1.)
-		v3 := buf[i[2]].ToHomoVec(1.)
-
-		v1.MulVec(&mvp, &v1)
-		v2.MulVec(&mvp, &v2)
-		v3.MulVec(&mvp, &v3)
-
+		v1.MulVec(mvp, &v1)
+		v2.MulVec(mvp, &v2)
+		v3.MulVec(mvp, &v3)
 		v1f, err := common.DenseToVec4f(&v1)
 		if err != nil {
 			return err
@@ -276,24 +285,25 @@ func (rasterizer Rasterizer) Draw(posBuffer posBufId, indBuffer indBufId, _type 
 		}
 		v := [3]common.Vec4f{v1f, v2f, v3f}
 
-		for j := 0; j < 3; j++ {
-			v[j][0] /= v[j][3]
-			v[j][1] /= v[j][3]
-			v[j][2] /= v[j][3]
-			v[j][3] = 1.
+		f1 := (100 - 0.1) / 2.0
+		f2 := (100 + 0.1) / 2.0
+		for i := 0; i < 3; i++ {
+			v[i][0] /= v[i][3]
+			v[i][1] /= v[i][3]
+			v[i][2] /= v[i][3]
+			v[i][3] = 1.
 
-			v[j][0] = 0.5*float64(rasterizer.width)*v[j][0] + 1.
-			v[j][1] = 0.5*float64(rasterizer.height)*v[j][1] + 1.
-			v[j][2] = v[j][2] * f1 * f2
-
-			t.SetVertex(j, common.Vec3f(v[j][:3]))
+			v[i][0] = 0.5 * float64(r.width) * (v[i][0] + 1)
+			v[i][1] = 0.5 * float64(r.height) * (v[i][1] + 1)
+			v[i][2] = v[i][2]*f1 + f2
+			t.SetVertex(i, common.Vec3f(v[i][:3]))
 		}
 
-		t.SetColor(0, 255.0, 0.0, 0.0)
-		t.SetColor(1, 0.0, 255.0, 0.0)
-		t.SetColor(2, 0.0, 0.0, 255.0)
+		t.SetColor(0, 255, 0, 0, 255)
+		t.SetColor(1, 0, 255, 0, 255)
+		t.SetColor(2, 0, 0, 255, 255)
 
-		rasterizer.rasterizeWireframe(&t)
+		r.rasterizeWireframe(&t)
 	}
 	return nil
 }

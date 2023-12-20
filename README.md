@@ -6,7 +6,5 @@ Maintained by Frederica.
 
 ## Some used library
  - [Gonum](https://pkg.go.dev/gonum.org/v1/gonum/mat#section-readme)
- - [SDL](https://www.libsdl.org/)
- - [GoSDL2](https://github.com/veandco/go-sdl2)
- - [Sparse](https://pkg.go.dev/github.com/james-bowman/sparse)(Optional)
- - [BLAS](https://pkg.go.dev/gonum.org/v1/gonum/blas#section-readme)(Optional)
+ - [Pixel](https://github.com/faiface/pixel)
+ - [ColorNames](https://golang.org/x/image/colornames)
