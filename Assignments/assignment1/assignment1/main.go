@@ -20,10 +20,11 @@ func newIdentify4() *mat.Dense {
 }
 
 func getViewMatrix(eyePos common.Vec3f) *mat.Dense {
-	view := newIdentify4()
-	translate := mat.NewDense(4, 4, []float64{1, 0, 0, -eyePos[0], 0, 1, 0, -eyePos[1], 0, 0, 1, -eyePos[2], 0, 0, 0, 1})
-	view.Mul(translate, view)
-	return view
+	//view := newIdentify4()
+	//translate := mat.NewDense(4, 4, []float64{1, 0, 0, -eyePos[0], 0, 1, 0, -eyePos[1], 0, 0, 1, -eyePos[2], 0, 0, 0, 1})
+	//view.Mul(translate, view)
+	//return view
+    return mat.NewDense(4, 4, []float64 {1, 0, 0, -eyePos[0], 0, 1, 0, -eyePos[1], 0, 0, 1, -eyePos[2], 0, 0, 0, 1})
 }
 
 func getModelMatrix(rotationAngle float64) *mat.Dense {
@@ -37,6 +38,7 @@ func getModelMatrix(rotationAngle float64) *mat.Dense {
 }
 
 func getProjectionMatrix(eveFov, aspectRatio, zNear, zFar float64) *mat.Dense {
+  /*
 	projection := newIdentify4()
 	t := math.Tan(eveFov/2) * math.Abs(zNear)
 	// b = -t
@@ -46,6 +48,9 @@ func getProjectionMatrix(eveFov, aspectRatio, zNear, zFar float64) *mat.Dense {
 	projection.Set(1, 1, zNear/t)
 	projection.Set(2, 2, (zNear+zFar)/(zNear-zFar))
 	projection.Set(2, 3, -2*zNear*zFar/(zNear-zFar))
+    projection.Set(3, 2, 1) // I have to say: I missed this '1'. :(
+  */
+    projection := mat.NewDense(4, 4, []float64 { 1/(aspectRatio* math.Tan(0.5* eveFov)), 0, 0, 0, 0, 1/math.Tan(0.5* eveFov), 0, 0, 0, 0, (zNear+zFar)/(zNear-zFar), -2*zNear*zFar/(zNear-zFar), 0, 0, 1, 0})
 	return projection
 }
 
