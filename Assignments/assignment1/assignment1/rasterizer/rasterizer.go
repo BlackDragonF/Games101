@@ -62,7 +62,7 @@ type FrameBufferElement struct {
 
 func NewFrameBufferElement() FrameBufferElement {
 	return FrameBufferElement{
-		color: common.Vec4i {255, 255, 255, 255},
+		color: common.Vec4i{255, 255, 255, 255},
 		depth: math.Inf(1),
 	}
 }
@@ -120,15 +120,19 @@ func (r *Rasterizer) SetPrimitive(primitive PrimitiveType) {
 
 // Only load the position of the vertexs.
 func (r *Rasterizer) LoadVerPosAndInd(positions []common.Vec3f, indices []common.Vec3i) {
-	r.VerBufInd = len(positions)
-	r.IndBufInd = len(indices)
-	r.vertexBuf = make([]VertexBufferElement, r.VerBufInd)
-	r.indexBuf = make([]common.Vec3i, r.IndBufInd)
-	for i := 0; i < r.VerBufInd; i++ {
-		r.vertexBuf[i].position = positions[i]
+	if r.VerBufInd != len(positions) {
+		r.VerBufInd = len(positions)
+		r.vertexBuf = make([]VertexBufferElement, r.VerBufInd)
 	}
-	for i := 0; i < r.IndBufInd; i++ {
-		r.indexBuf[i] = indices[i]
+	if r.IndBufInd != len(indices) {
+		r.IndBufInd = len(indices)
+		r.indexBuf = make([]common.Vec3i, r.IndBufInd)
+	}
+	for i, pos := range positions {
+		r.vertexBuf[i].position = pos
+	}
+	for i, ind := range indices {
+		r.indexBuf[i] = ind
 	}
 }
 
@@ -138,7 +142,7 @@ func (r *Rasterizer) ClearFrameBuf(signal ClearSignal) {
 	}
 	if (signal & COLOR) == COLOR {
 		for i := 0; i < len(r.frameBuf); i++ {
-			r.frameBuf[i].color = common.Vec4i {255, 255, 255, 255}
+			r.frameBuf[i].color = common.Vec4i{255, 255, 255, 255}
 		}
 	}
 	if (signal & DEPTH) == DEPTH {
@@ -190,7 +194,7 @@ func (r *Rasterizer) SetProjectionMat(p *mat.Dense) error {
 	return nil
 }
 
-// METHODS ABOUT DRAWING
+// METHODS ABOUT DRAWINcolorG
 func (r *Rasterizer) drawLine(begin, end common.Vec3f, lineColor common.Vec4i) {
 	x1 := int(begin[0])
 	y1 := int(begin[1])
@@ -219,7 +223,6 @@ func (r *Rasterizer) drawLine(begin, end common.Vec3f, lineColor common.Vec4i) {
 	}
 
 	err := dx - dy
-
 	for {
 		point := common.Vec3f{float64(x1), float64(y1), 1}
 		r.setPixel(point, lineColor)
@@ -228,7 +231,7 @@ func (r *Rasterizer) drawLine(begin, end common.Vec3f, lineColor common.Vec4i) {
 			break
 		}
 
-		e2 := 2 * err
+		e2 := err << 1
 		if e2 > -dy {
 			err -= dy
 			x1 += sx
@@ -241,30 +244,27 @@ func (r *Rasterizer) drawLine(begin, end common.Vec3f, lineColor common.Vec4i) {
 }
 
 func (r *Rasterizer) rasterizeWireframe(t *triangle.Triangle) {
-	color, _ := t.GetColor(0)
-	r.drawLine(t.GetC(), t.GetA(), color)
-	color, _ = t.GetColor(1)
-	r.drawLine(t.GetC(), t.GetB(), color)
-	color, _ = t.GetColor(2)
-	r.drawLine(t.GetB(), t.GetA(), color)
+	go r.drawLine(t.GetC(), t.GetA(), t.GetColor(0))
+	go r.drawLine(t.GetC(), t.GetB(), t.GetColor(1))
+	go r.drawLine(t.GetB(), t.GetA(), t.GetColor(2))
 }
 
 func (r *Rasterizer) Draw() error {
 	if r.primitive != TriangleList {
 		return errors.New("rasterizer: drawing primitives other than triangle is not implemented yet!")
 	}
-	vers := r.vertexBuf
-	indices := r.indexBuf
+	vers := &r.vertexBuf
+	indices := &r.indexBuf
 
 	mvp := mat.NewDense(4, 4, nil)
 	mvp.Mul(r.projectionMat, r.viewMat)
 	mvp.Mul(mvp, r.modelMat)
 
-	for _, ind := range indices {
+	for _, ind := range *indices {
 		t := triangle.NewTriangle()
-		v1 := vers[ind[0]].position.ToHomoVec(1.)
-		v2 := vers[ind[1]].position.ToHomoVec(1.)
-		v3 := vers[ind[2]].position.ToHomoVec(1.)
+		v1 := (*vers)[ind[0]].position.ToHomoVec(1.)
+		v2 := (*vers)[ind[1]].position.ToHomoVec(1.)
+		v3 := (*vers)[ind[2]].position.ToHomoVec(1.)
 
 		v1.MulVec(mvp, &v1)
 		v2.MulVec(mvp, &v2)
@@ -292,8 +292,8 @@ func (r *Rasterizer) Draw() error {
 			v[i][2] *= w_backwards
 			v[i][3] = 1
 
-			v[i][0] = float64(r.width >> 1) * (v[i][0] + 1)
-			v[i][1] = float64(r.height >> 1) * (v[i][1] + 1)
+			v[i][0] = float64(r.width>>1) * (v[i][0] + 1)
+			v[i][1] = float64(r.height>>1) * (v[i][1] + 1)
 			//v[i][2] = v[i][2]*f1 + f2
 			v[i][2] = v[i][2]*49.95 + 50.05
 			t.SetVertex(i, common.Vec3f(v[i][:3]))

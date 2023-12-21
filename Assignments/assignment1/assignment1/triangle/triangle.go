@@ -77,11 +77,11 @@ func (triangle *Triangle) SetColor(ind, r, g, b, a int64) error {
     triangle.color[ind][3] = a
 	return nil
 }
-func (triangle *Triangle) GetColor(ind int) (common.Vec4i, error) {
+func (triangle *Triangle) GetColor(ind int) common.Vec4i {
   if ind < 0 || ind >= 3 {
-    return common.NewVec4i(), errors.New(fmt.Sprintf("triangle: ind %d out of range\n", ind))
+    return common.NewVec4i() 
   }
-  return triangle.color[ind], nil
+  return triangle.color[ind]
 }
 
 /* set i-th vertex texture coordinate */
