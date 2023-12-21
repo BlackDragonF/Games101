@@ -11,7 +11,7 @@ type Triangle struct {
 	counter clockwise order */
 	v [3]common.Vec3f
 	/* Per vertex values */
-	color      [3]common.Vec4f // color at each vertex;
+	color      [3]common.Vec4i // color at each vertex;
 	tex_coords [3]common.Vec2f // texture u,v
 	normal     [3]common.Vec3f // normal common.vector for each vertex
 }
@@ -19,7 +19,7 @@ type Triangle struct {
 func NewTriangle() Triangle {
 	return Triangle{
 		v:          [3]common.Vec3f{{0., 0., 0.}, {0., 0., 0.}, {0., 0., 0.}},
-		color:      [3]common.Vec4f{{0., 0., 0., 0.}, {0., 0., 0., 0.}, {0., 0., 0., 0.}},
+		color:      [3]common.Vec4i{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
 		tex_coords: [3]common.Vec2f{{0., 0.}, {0., 0.}, {0., 0.}},
 		normal:     [3]common.Vec3f{{0., 0., 0.}, {0., 0., 0.}, {0., 0., 0.}},
 	}
@@ -64,22 +64,22 @@ func (triangle *Triangle) SetNormal(ind int, ver common.Vec3f) error {
 }
 
 /* set i-th vertex color */
-func (triangle *Triangle) SetColor(ind int, r, g, b, a float64) error {
+func (triangle *Triangle) SetColor(ind, r, g, b, a int64) error {
 	if ind < 0 || ind > 2 {
 		return errors.New(fmt.Sprintf("triangle: ind %d out of range\n", ind))
 	}
 	if r < 0 || r > 255 || g < 0 || g > 255 || b < 0. || b > 255 || a < 0 || a > 255 {
-		return errors.New(fmt.Sprintf("triangle: invalid color value (%.2f, %.2f, %.2f, %.2f)\n", r, g, b, a))
+		return errors.New(fmt.Sprintf("triangle: invalid color value (%d, %d, %d, %d)\n", r, g, b, a))
 	}
-	triangle.color[ind][0] = r / 255.
-	triangle.color[ind][1] = g / 255.
-	triangle.color[ind][2] = b / 255.
-    triangle.color[ind][3] = a / 255.
+	triangle.color[ind][0] = r
+	triangle.color[ind][1] = g
+	triangle.color[ind][2] = b
+    triangle.color[ind][3] = a
 	return nil
 }
-func (triangle *Triangle) GetColor(ind int) (common.Vec4f, error) {
+func (triangle *Triangle) GetColor(ind int) (common.Vec4i, error) {
   if ind < 0 || ind >= 3 {
-    return common.NewVec4f(), errors.New(fmt.Sprintf("triangle: ind %d out of range\n", ind))
+    return common.NewVec4i(), errors.New(fmt.Sprintf("triangle: ind %d out of range\n", ind))
   }
   return triangle.color[ind], nil
 }

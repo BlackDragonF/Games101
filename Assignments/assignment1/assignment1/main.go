@@ -11,7 +11,6 @@ import (
 
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
-	"golang.org/x/image/colornames"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -20,11 +19,7 @@ func newIdentify4() *mat.Dense {
 }
 
 func getViewMatrix(eyePos common.Vec3f) *mat.Dense {
-	//view := newIdentify4()
-	//translate := mat.NewDense(4, 4, []float64{1, 0, 0, -eyePos[0], 0, 1, 0, -eyePos[1], 0, 0, 1, -eyePos[2], 0, 0, 0, 1})
-	//view.Mul(translate, view)
-	//return view
-    return mat.NewDense(4, 4, []float64 {1, 0, 0, -eyePos[0], 0, 1, 0, -eyePos[1], 0, 0, 1, -eyePos[2], 0, 0, 0, 1})
+	return mat.NewDense(4, 4, []float64{1, 0, 0, -eyePos[0], 0, 1, 0, -eyePos[1], 0, 0, 1, -eyePos[2], 0, 0, 0, 1})
 }
 
 func getModelMatrix(rotationAngle float64) *mat.Dense {
@@ -38,19 +33,21 @@ func getModelMatrix(rotationAngle float64) *mat.Dense {
 }
 
 func getProjectionMatrix(eveFov, aspectRatio, zNear, zFar float64) *mat.Dense {
-  /*
-	projection := newIdentify4()
-	t := math.Tan(eveFov/2) * math.Abs(zNear)
-	// b = -t
-	r := aspectRatio * t
-	// l = -r
-	projection.Set(0, 0, zNear/r)
-	projection.Set(1, 1, zNear/t)
-	projection.Set(2, 2, (zNear+zFar)/(zNear-zFar))
-	projection.Set(2, 3, -2*zNear*zFar/(zNear-zFar))
-    projection.Set(3, 2, 1) // I have to say: I missed this '1'. :(
-  */
-    projection := mat.NewDense(4, 4, []float64 { 1/(aspectRatio* math.Tan(0.5* eveFov)), 0, 0, 0, 0, 1/math.Tan(0.5* eveFov), 0, 0, 0, 0, (zNear+zFar)/(zNear-zFar), -2*zNear*zFar/(zNear-zFar), 0, 0, 1, 0})
+	/*
+		projection := newIdentify4()
+		t := math.Tan(eveFov/2) * math.Abs(zNear)
+		// b = -t
+		r := aspectRatio * t
+		// l = -r
+		projection.Set(0, 0, zNear/r)
+		projection.Set(1, 1, zNear/t)
+		projection.Set(2, 2, (zNear+zFar)/(zNear-zFar))
+		projection.Set(2, 3, -2*zNear*zFar/(zNear-zFar))
+	    projection.Set(3, 2, 1) // I have to say: I missed this '1'. :(
+	*/
+	cot_fov := 1 / math.Tan(0.5*eveFov)
+	n_f_bw := 1 / (zNear - zFar)
+	projection := mat.NewDense(4, 4, []float64{cot_fov * aspectRatio, 0, 0, 0, 0, cot_fov, 0, 0, 0, 0, (zNear + zFar) * n_f_bw, -2 * zNear * zFar * n_f_bw, 0, 0, 1, 0})
 	return projection
 }
 
@@ -74,13 +71,9 @@ func run() {
 		panic(err)
 	}
 
-	frameCount := 0
+	var frameCount int64 = 0
+	startTime := time.Now().UnixMilli()
 	for !win.Closed() {
-		angle = angle + 0.01
-		if angle >= 360 {
-			angle = 0
-		}
-
 		frameCount++
 		r.ClearFrameBuf(rasterizer.COLOR | rasterizer.DEPTH)
 		win.SetTitle(fmt.Sprintf("Rotation - FrameCount: %d", frameCount))
@@ -102,15 +95,21 @@ func run() {
 					continue
 				}
 				frameColor := frame[ind].GetColor()
-				img.Set(i, j, color.RGBA{uint8(frameColor[0] * 255), uint8(frameColor[1] * 255), uint8(frameColor[2] * 255), uint8(frameColor[3] * 255)})
+				img.Set(i, j, color.RGBA{uint8(frameColor[0]), uint8(frameColor[1]), uint8(frameColor[2]), uint8(frameColor[3])})
 			}
 		}
 		pic := pixel.PictureDataFromImage(img)
 		sprite := pixel.NewSprite(pic, pic.Bounds())
-		win.Clear(colornames.Black)
 		sprite.Draw(win, pixel.IM.Moved(win.Bounds().Center()))
 		win.Update()
-		time.Sleep(40 * time.Millisecond)
+		angle += 0.01
+		frameDuration := time.Now().UnixMilli() - startTime
+		if frameDuration >= 1000 {
+			fmt.Println("FPS: ", 1000* float64(frameCount)/ float64(frameDuration))
+			frameCount = 0
+			startTime = time.Now().UnixMilli()
+		}
+		//time.Sleep(16 * time.Millisecond)
 	}
 }
 

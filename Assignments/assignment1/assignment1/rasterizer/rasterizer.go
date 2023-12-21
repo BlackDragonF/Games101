@@ -21,11 +21,11 @@ const (
 type VertexBufferElement struct {
 	position common.Vec3f // (x, y, z)
 	color    common.Vec4f // (r, g, b, a) => 0 <= r, g, b, a <= 1
-	// TODO: Add more buffers
+	// TODO: Add more elements
 	// for example:
 	/*
-	  normalLine    []common.Vec3f // (nx, ny, nz)
-	  texture       []common.Vec2f // (u, v)
+	  normalLine    common.Vec3f // (nx, ny, nz)
+	  texture       common.Vec2f // (u, v)
 	*/
 }
 
@@ -54,20 +54,20 @@ const (
 
 // STRUCT OF FrameBufferElement AND ITS CONSTROCTOR
 type FrameBufferElement struct {
-	color common.Vec4f // (r, g, b, a) => 0 <= r, g, b, a <= 1
+	color common.Vec4i // (r, g, b, a) => 0 <= r, g, b, a <= 255
 	depth float64
-	// TODO: Add more buffers
+	// TODO: Add more elements
 	// for example: tencil, accumulation...
 }
 
 func NewFrameBufferElement() FrameBufferElement {
 	return FrameBufferElement{
-		color: common.NewVec4f(),
+		color: common.Vec4i {255, 255, 255, 255},
 		depth: math.Inf(1),
 	}
 }
 
-func (fe *FrameBufferElement) GetColor() common.Vec4f {
+func (fe *FrameBufferElement) GetColor() common.Vec4i {
 	return fe.color
 }
 
@@ -138,7 +138,7 @@ func (r *Rasterizer) ClearFrameBuf(signal ClearSignal) {
 	}
 	if (signal & COLOR) == COLOR {
 		for i := 0; i < len(r.frameBuf); i++ {
-			r.frameBuf[i].color = common.NewVec4f()
+			r.frameBuf[i].color = common.Vec4i {255, 255, 255, 255}
 		}
 	}
 	if (signal & DEPTH) == DEPTH {
@@ -150,23 +150,15 @@ func (r *Rasterizer) ClearFrameBuf(signal ClearSignal) {
 
 // map (x, y) of point to (x', y') of screen
 func (r *Rasterizer) GetFrameInd(x, y int) int {
-	return x* r.width+ y
+	return x*r.width + y
 }
 
-func (r *Rasterizer) setPixel(point common.Vec3f, color common.Vec4f) error {
-	x := point[0]
-	y := point[1]
-	if x < 0 || x >= float64(r.width) || y < 0 || y >= float64(r.height) {
-		return errors.New(fmt.Sprintf("rasterizer: wrong point. Got (%.3f, %.3f), expected range: (0, 0) to (%d, %d)", x, y, r.width, r.height))
-	}
-	x = math.Floor(x)
-	y = math.Floor(y)
-	ind := r.GetFrameInd(int(x), int(y))
+func (r *Rasterizer) setPixel(point common.Vec3f, color common.Vec4i) {
+	ind := r.GetFrameInd(int(point[0]), int(point[1]))
 	if ind >= len(r.frameBuf) {
-		return errors.New(fmt.Sprintf("rasterizer: index out of range. Got: %d, max: %d", ind, r.width*r.height))
+		return
 	}
 	r.frameBuf[ind].color = color
-	return nil
 }
 
 func (r *Rasterizer) GetFrameBuf() []FrameBufferElement {
@@ -199,14 +191,20 @@ func (r *Rasterizer) SetProjectionMat(p *mat.Dense) error {
 }
 
 // METHODS ABOUT DRAWING
-func (r *Rasterizer) drawLine(begin, end common.Vec3f, lineColor common.Vec4f) {
+func (r *Rasterizer) drawLine(begin, end common.Vec3f, lineColor common.Vec4i) {
 	x1 := int(begin[0])
 	y1 := int(begin[1])
 	x2 := int(end[0])
 	y2 := int(end[1])
+	dx := x2 - x1
+	dy := y2 - y1
+	if dx < 0 {
+		dx = -dx
+	}
+	if dy < 0 {
+		dy = -dy
+	}
 
-	dx := int(math.Abs(float64(x2 - x1)))
-	dy := int(math.Abs(float64(y2 - y1)))
 	var sx, sy int
 
 	if x1 < x2 {
@@ -223,7 +221,7 @@ func (r *Rasterizer) drawLine(begin, end common.Vec3f, lineColor common.Vec4f) {
 	err := dx - dy
 
 	for {
-		point := common.Vec3f{float64(x1), float64(y1), 1.}
+		point := common.Vec3f{float64(x1), float64(y1), 1}
 		r.setPixel(point, lineColor)
 
 		if x1 == x2 && y1 == y2 {
@@ -285,17 +283,19 @@ func (r *Rasterizer) Draw() error {
 		}
 		v := [3]common.Vec4f{v1f, v2f, v3f}
 
-		f1 := (100 - 0.1) / 2.0
-		f2 := (100 + 0.1) / 2.0
+		//f1 := (100 - 0.1) / 2.0
+		//f2 := (100 + 0.1) / 2.0
 		for i := 0; i < 3; i++ {
-			v[i][0] /= v[i][3]
-			v[i][1] /= v[i][3]
-			v[i][2] /= v[i][3]
-			v[i][3] = 1.
+			w_backwards := 1 / v[i][3]
+			v[i][0] *= w_backwards
+			v[i][1] *= w_backwards
+			v[i][2] *= w_backwards
+			v[i][3] = 1
 
-			v[i][0] = 0.5 * float64(r.width) * (v[i][0] + 1)
-			v[i][1] = 0.5 * float64(r.height) * (v[i][1] + 1)
-			v[i][2] = v[i][2]*f1 + f2
+			v[i][0] = float64(r.width >> 1) * (v[i][0] + 1)
+			v[i][1] = float64(r.height >> 1) * (v[i][1] + 1)
+			//v[i][2] = v[i][2]*f1 + f2
+			v[i][2] = v[i][2]*49.95 + 50.05
 			t.SetVertex(i, common.Vec3f(v[i][:3]))
 		}
 
