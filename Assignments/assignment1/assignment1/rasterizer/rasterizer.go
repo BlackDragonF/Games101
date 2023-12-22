@@ -71,6 +71,10 @@ func (fe *FrameBufferElement) GetColor() common.Vec4i {
 	return fe.color
 }
 
+func (fe *FrameBufferElement) GetDepth() float64 {
+	return fe.depth
+}
+
 // Rasterizer type
 type Rasterizer struct {
 	// Screen size: width x height pixels
@@ -110,6 +114,12 @@ func NewRasterizer(w, h int, primitive PrimitiveType) Rasterizer {
 	}
 }
 
+func (r *Rasterizer) Resize(w, h int) {
+	r.width = w
+	r.height = h
+	r.frameBuf = make([]FrameBufferElement, w*h)
+}
+
 func (r *Rasterizer) GetSize() (int, int) {
 	return r.width, r.height
 }
@@ -142,7 +152,7 @@ func (r *Rasterizer) ClearFrameBuf(signal ClearSignal) {
 	}
 	if (signal & COLOR) == COLOR {
 		for i := 0; i < len(r.frameBuf); i++ {
-			r.frameBuf[i].color = common.Vec4i{255, 255, 255, 255}
+			r.frameBuf[i].color = common.Vec4i{0, 0, 0, 255}
 		}
 	}
 	if (signal & DEPTH) == DEPTH {
@@ -159,10 +169,15 @@ func (r *Rasterizer) GetFrameInd(x, y int) int {
 
 func (r *Rasterizer) setPixel(point common.Vec3f, color common.Vec4i) {
 	ind := r.GetFrameInd(int(point[0]), int(point[1]))
-	if ind >= len(r.frameBuf) {
+	if ind < 0 || ind >= len(r.frameBuf) {
 		return
 	}
-	r.frameBuf[ind].color = color
+	d := point[0]*point[0] + point[1]*point[1]+ point[2]* point[2]
+    // use z-buffering algorithm 
+	if d < r.frameBuf[ind].depth {
+		r.frameBuf[ind].depth = d
+		r.frameBuf[ind].color = color
+	}
 }
 
 func (r *Rasterizer) GetFrameBuf() []FrameBufferElement {
@@ -299,9 +314,12 @@ func (r *Rasterizer) Draw() error {
 			t.SetVertex(i, common.Vec3f(v[i][:3]))
 		}
 
-		t.SetColor(0, 255, 0, 0, 255)
-		t.SetColor(1, 0, 255, 0, 255)
-		t.SetColor(2, 0, 0, 255, 255)
+		//t.SetColor(0, 255, 0, 0, 255)
+		//t.SetColor(1, 0, 255, 0, 255)
+		//t.SetColor(2, 0, 0, 255, 255)
+		t.SetColor(0, 255, 255, 255, 255)
+		t.SetColor(1, 255, 255, 255, 255)
+		t.SetColor(2, 255, 255, 255, 255)
 
 		r.rasterizeWireframe(&t)
 	}

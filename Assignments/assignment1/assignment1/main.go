@@ -71,6 +71,8 @@ func run() {
 
 	pos := []common.Vec3f{{2, 0, -2}, {0, 2, -2}, {-2, 0, -2}}
 	ind := []common.Vec3i{{0, 1, 2}}
+	//pos := []common.Vec3f{{1, 6, 0}, {3, 6, -1}, {6, 1, -2}, {2, 1, 0}, {1, 2, -1}, {3, 6, -2}, {1, 3, -2}, {6, 3, -1}, {7, 2, 0}}
+	//ind := []common.Vec3i{{0, 1, 2}, {3, 4, 5}, {6, 7, 8}}
 	angle := 0
 	r.SetPrimitive(rasterizer.TriangleList)
 	r.LoadVerPosAndInd(pos, ind)
@@ -83,18 +85,31 @@ func run() {
 	if err != nil {
 		panic(err)
 	}
-    
-    maxInd := winWidth * winHeight
+
+	maxInd := winWidth * winHeight
 	var frameCount int64 = 0
-	startTime := time.Now().UnixMilli()	
+	startTime := time.Now().UnixMilli()
+	zNear, zFar := 0.1, 50.
+	const n = 8016.31794 //float64(winHeight) / (2 * math.Tan(2.5*3.1416/180))
+	fmt.Println(2 * math.Atan(float64(winHeight)/(2*n)*180/3.1416))
+	eyeFov, aspectRatio := 2*math.Atan(float64(winHeight)/(2*n))*180/3.1416, float64(winWidth)/float64(winHeight)
 	for !win.Closed() {
+		h := int(win.Bounds().Size().Y)
+		w := int(win.Bounds().Size().X)
+		if h != winHeight || w != winWidth {
+			winWidth = w
+			winHeight = h
+			r.Resize(w, h)
+			eyeFov, aspectRatio = 2*math.Atan(float64(winHeight)/(2*n))*180/3.1416, float64(winWidth)/float64(winHeight)
+			maxInd = winWidth * winHeight
+		}
 		frameCount++
 		r.ClearFrameBuf(rasterizer.COLOR | rasterizer.DEPTH)
 		win.SetTitle(fmt.Sprintf("Rotation - FrameCount: %d", frameCount))
 
 		r.SetModelMat(getModelMatrix(angle))
 		r.SetViewMat(getViewMatrix(eyePos))
-		r.SetProjectionMat(getProjectionMatrix(45, 1, 0.1, 50))
+		r.SetProjectionMat(getProjectionMatrix(eyeFov, aspectRatio, zNear, zFar))
 
 		go r.Draw()
 
@@ -109,6 +124,7 @@ func run() {
 				}
 				frameColor := frame[ind].GetColor()
 				img.Set(i, j, color.RGBA{uint8(frameColor[0]), uint8(frameColor[1]), uint8(frameColor[2]), uint8(frameColor[3])})
+                //img.Set(i, j, color.RGBA{uint8(frame[ind].GetDepth()), uint8(frame[ind].GetDepth()), uint8(frame[ind].GetDepth()), 255})
 			}
 		}
 
@@ -117,7 +133,7 @@ func run() {
 		go sprite.Draw(win, pixel.IM.Moved(win.Bounds().Center()))
 		win.Update()
 
-		angle++
+		//angle++
 		if angle == 36000 {
 			angle = 0
 		}
