@@ -164,11 +164,11 @@ func (r *Rasterizer) ClearFrameBuf(signal ClearSignal) {
 
 // map (x, y) of point to (x', y') of screen
 func (r *Rasterizer) GetFrameInd(x, y int) int {
-	return x*r.width + y
+	return x* r.width+ y
 }
 
 func (r *Rasterizer) setPixel(point common.Vec3f, color common.Vec4i) {
-	ind := r.GetFrameInd(int(point[0]), int(point[1]))
+    ind := r.GetFrameInd(int(point[0]), int(point[1]))
 	if ind < 0 || ind >= len(r.frameBuf) {
 		return
 	}

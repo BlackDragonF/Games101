@@ -34,7 +34,7 @@ func getModelMatrix(rotationAngle int) *mat.Dense {
 	model.Set(0, 1, -tableSin[rotationAngle])
 	model.Set(1, 0, tableSin[rotationAngle])
 	model.Set(1, 1, tableCos[rotationAngle])
-    model.Mul(model, mat.NewDense(4, 4, []float64{-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}))
+	model.Mul(model, mat.NewDense(4, 4, []float64{-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}))
 
 	return model
 }
@@ -56,7 +56,7 @@ func getProjectionMatrix(eyeFov, aspectRatio, zNear, zFar float64) *mat.Dense {
 	//eyeFov50 := int(eyeFov)<<5 + int(eyeFov)<<4 + int(eyeFov)<<1
 	cot_fov := tableCot[int(eyeFov*50)]
 	n_f_bw := 1 / (zNear - zFar)
-	projection := mat.NewDense(4, 4, []float64{cot_fov / aspectRatio, 0, 0, 0, 0, cot_fov, 0, 0, 0, 0, (zNear + zFar) * n_f_bw, 2 * zNear * zFar * n_f_bw, 0, 0, -1, 0})
+	projection := mat.NewDense(4, 4, []float64{cot_fov / aspectRatio, 0, 0, 0, 0, cot_fov, 0, 0, 0, 0, (zNear + zFar) * n_f_bw, -2 * zNear * zFar * n_f_bw, 0, 0, 1, 0})
 	return projection
 }
 
@@ -70,16 +70,18 @@ func run() {
 	r := rasterizer.NewRasterizer(winWidth, winHeight, rasterizer.TriangleList)
 	eyePos := common.Vec3f{0, 0, 5}
 
-	pos := []common.Vec3f{
-		{2, 0, -2},
-		{0, 2, -2},
-		{-2, 0, -2},
-		{3.5, -1, -5},
-		{2.5, 1.5, -5},
-		{-1, 0.5, -5}}
-	ind := []common.Vec3i{{0, 1, 2}, {3, 4, 5}}
-	//pos := []common.Vec3f{{2, 0, -2}, {0, 2, -2}, {-2, 0, -2}}
-	//ind := []common.Vec3i{{0, 1, 2}}
+	/*
+		pos := []common.Vec3f{
+			{2, 0, -2},
+			{0, 2, -2},
+			{-2, 0, -2},
+			{3.5, -1, -5},
+			{2.5, 1.5, -5},
+			{-1, 0.5, -5}}
+		ind := []common.Vec3i{{0, 1, 2}, {3, 4, 5}}
+	*/
+	pos := []common.Vec3f{{2, 0, -2}, {0, 2, -2}, {-2, 0, -2}}
+	ind := []common.Vec3i{{0, 1, 2}}
 	//pos := []common.Vec3f{{1, 6, 0}, {3, 6, -1}, {6, 1, -2}, {2, 1, 0}, {1, 2, -1}, {3, 6, -2}, {1, 3, -2}, {6, 3, -1}, {7, 2, 0}}
 	//ind := []common.Vec3i{{0, 1, 2}, {3, 4, 5}, {6, 7, 8}}
 	angle := 0
@@ -98,28 +100,31 @@ func run() {
 	maxInd := winWidth * winHeight
 	var frameCount int64 = 0
 	startTime := time.Now().UnixMilli()
-	zNear, zFar := 0.1, 50.
-	const n = 8016.31794 //float64(winHeight) / (2 * math.Tan(2.5*3.1416/180))
-	fmt.Println(2 * math.Atan(float64(winHeight)/(2*n)*180/3.1416))
-	eyeFov, aspectRatio := 2*math.Atan(float64(winHeight)/(2*n))*180/3.1416, float64(winWidth)/float64(winHeight)
-
+	/*
+		zNear, zFar := 0.1, 50.
+		const n = 8016.31794 //float64(winHeight) / (2 * math.Tan(2.5*3.1416/180))
+		fmt.Println(2 * math.Atan(float64(winHeight)/(2*n)*180/3.1416))
+		eyeFov, aspectRatio := 2*math.Atan(float64(winHeight)/(2*n))*180/3.1416, float64(winWidth)/float64(winHeight)
+	*/
 	for !win.Closed() {
-		h := int(win.Bounds().Size().Y)
-		w := int(win.Bounds().Size().X)
-		if h != winHeight || w != winWidth {
-			winWidth = w
-			winHeight = h
-			r.Resize(w, h)
-			eyeFov, aspectRatio = 2*math.Atan(float64(winHeight)/(2*n))*180/3.1416, float64(winWidth)/float64(winHeight)
-			maxInd = winWidth * winHeight
-		}
+		/*
+			h := int(win.Bounds().Size().Y)
+			w := int(win.Bounds().Size().X)
+			if h != winHeight || w != winWidth {
+				winWidth = w
+				winHeight = h
+				r.Resize(w, h)
+				eyeFov, aspectRatio = 2*math.Atan(float64(winHeight)/(2*n))*180/3.1416, float64(winWidth)/float64(winHeight)
+				maxInd = winWidth * winHeight
+			}
+		*/
 		frameCount++
 		r.ClearFrameBuf(rasterizer.COLOR | rasterizer.DEPTH)
 		win.SetTitle(fmt.Sprintf("Rotation - FrameCount: %d", frameCount))
 
 		r.SetModelMat(getModelMatrix(angle))
 		r.SetViewMat(getViewMatrix(eyePos))
-		r.SetProjectionMat(getProjectionMatrix(eyeFov, aspectRatio, zNear, zFar))
+		r.SetProjectionMat(getProjectionMatrix(45, 1, 0.1, 50))
 
 		go r.Draw()
 
