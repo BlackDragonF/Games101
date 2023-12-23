@@ -4,7 +4,6 @@ go 1.21.4
 
 require (
 	github.com/faiface/pixel v0.10.0
-	github.com/google/go-cmp v0.6.0
 	gonum.org/v1/gonum v0.14.0
 )
 

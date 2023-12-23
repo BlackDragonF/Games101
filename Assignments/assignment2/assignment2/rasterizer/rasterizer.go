@@ -63,7 +63,7 @@ type FrameBufferElement struct {
 
 func NewFrameBufferElement() FrameBufferElement {
 	return FrameBufferElement{
-		color: common.Vec4i{255, 255, 255, 255},
+		color: common.Vec4i{0, 0, 0, 255},
 		depth: math.Inf(1),
 	}
 }
@@ -108,7 +108,7 @@ func NewRasterizer(w, h int, primitive PrimitiveType) Rasterizer {
 		projectionMat: mat.NewDense(4, 4, nil),
 		vertexBuf:     make([]VertexBufferElement, 1),
 		indexBuf:      make([]common.Vec3i, 1),
-		frameBuf:      make([]FrameBufferElement, w*h),
+		frameBuf:      make([]FrameBufferElement, (w*h)<<2),
 		primitive:     primitive,
 		IndBufInd:     0,
 		VerBufInd:     0,
@@ -118,7 +118,7 @@ func NewRasterizer(w, h int, primitive PrimitiveType) Rasterizer {
 func (r *Rasterizer) Resize(w, h int) {
 	r.width = w
 	r.height = h
-	r.frameBuf = make([]FrameBufferElement, w*h)
+	r.frameBuf = make([]FrameBufferElement, (w*h)<<2)
 }
 
 func (r *Rasterizer) GetSize() (int, int) {
@@ -208,6 +208,17 @@ func (r *Rasterizer) GetFrameInd(x, y int) int {
 	return x*r.width + y
 }
 
+func (r *Rasterizer) setPixel(ind int, depth float64, color common.Vec4i) {
+	if ind < 0 || ind >= len(r.frameBuf) {
+		return
+	}
+	if depth < r.frameBuf[ind].depth {
+		r.frameBuf[ind].color = color
+		r.frameBuf[ind].depth = depth
+	}
+}
+
+/*
 func (r *Rasterizer) setPixel(point common.Vec3f, color common.Vec4i) {
 	ind := r.GetFrameInd(int(point[0]), int(point[1]))
 	if ind < 0 || ind >= len(r.frameBuf) {
@@ -218,6 +229,7 @@ func (r *Rasterizer) setPixel(point common.Vec3f, color common.Vec4i) {
 		r.frameBuf[ind].depth = point[2]
 	}
 }
+*/
 
 func (r *Rasterizer) GetFrameBuf() []FrameBufferElement {
 	return r.frameBuf
@@ -248,6 +260,7 @@ func (r *Rasterizer) SetProjectionMat(p *mat.Dense) error {
 	return nil
 }
 
+/*
 func (r *Rasterizer) drawLine(begin, end common.Vec3f, lineColor common.Vec4i) {
 	x1 := int(begin[0])
 	y1 := int(begin[1])
@@ -295,6 +308,7 @@ func (r *Rasterizer) drawLine(begin, end common.Vec3f, lineColor common.Vec4i) {
 		}
 	}
 }
+*/
 
 // Create bounding box
 // for each pixel p in bounding box:
@@ -316,14 +330,6 @@ func (r *Rasterizer) rasterizeTriangle(t *triangle.Triangle) {
 	for x := minX; x <= maxX; x++ {
 		wg.Add(1)
 		go r.rasterizeTriangleCol(x, minY, maxY, t, &wg)
-		/*for y := 0; y < r.height; y++ {
-			v := t.GetVertxs()
-			if insideTriangle(float64(x)+0.5, float64(y)+0.5, v) {
-				alpha, beta, gamma := computeBarycentric2D(float64(x), float64(y), v)
-				z_interpolated := (alpha*v[0][2] + beta*v[1][2] + gamma*v[2][2]) / (alpha + beta + gamma)
-				r.setPixel(common.Vec3f{float64(x), float64(y), -z_interpolated}, t.GetColor(0))
-			}
-		}*/
 	}
 	wg.Wait()
 }
@@ -332,10 +338,27 @@ func (r *Rasterizer) rasterizeTriangleCol(x, minY, maxY int, t *triangle.Triangl
 	defer wg.Done()
 	for y := minY; y < maxY; y++ {
 		v := t.GetVertxs()
-		if insideTriangle(float64(x)+0.5, float64(y)+0.5, v) {
+		/*if insideTriangle(float64(x)+0.5, float64(y)+0.5, v) {
 			alpha, beta, gamma := computeBarycentric2D(float64(x), float64(y), v)
 			z_interpolated := (alpha*v[0][2] + beta*v[1][2] + gamma*v[2][2]) / (alpha + beta + gamma)
 			r.setPixel(common.Vec3f{float64(x), float64(y), -z_interpolated}, t.GetColor(0))
+		}*/
+		// MSAA4
+		alpha, beta, gamma := computeBarycentric2D(float64(x), float64(y), v)
+		z_interpolated := (alpha*v[0][2] + beta*v[1][2] + gamma*v[2][2]) / (alpha + beta + gamma)
+		ind := (r.GetFrameInd(x, y)) << 2
+		color := t.GetColor(0)
+		if insideTriangle(float64(x)+0.25, float64(y)+0.25, v) {
+			r.setPixel(ind, z_interpolated, color)
+		}
+		if insideTriangle(float64(x)+0.25, float64(y)+0.75, v) {
+			r.setPixel(ind+1, z_interpolated, color)
+		}
+		if insideTriangle(float64(x)+0.75, float64(y)+0.25, v) {
+			r.setPixel(ind+2, z_interpolated, color)
+		}
+		if insideTriangle(float64(x)+0.75, float64(y)+0.75, v) {
+			r.setPixel(ind+3, z_interpolated, color)
 		}
 	}
 }

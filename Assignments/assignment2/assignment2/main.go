@@ -78,18 +78,20 @@ func run() {
 	r.LoadInd(ind)
 
 	cfg := pixelgl.WindowConfig{
-		Title:  "Rotation",
+		Title:  "Cover",
 		Bounds: pixel.R(0, 0, float64(winWidth), float64(winHeight)),
 	}
 	winColor, err := pixelgl.NewWindow(cfg)
 	if err != nil {
 		panic(err)
 	}
-	winDepth, err := pixelgl.NewWindow(cfg)
-	if err != nil {
-		panic(err)
-	}
-	winDepth.SetTitle("Depth")
+	/*
+		winDepth, err := pixelgl.NewWindow(cfg)
+		if err != nil {
+			panic(err)
+		}
+		winDepth.SetTitle("Depth")
+	*/
 
 	var frameCount int64 = 0
 	startTime := time.Now().UnixMilli()
@@ -103,13 +105,7 @@ func run() {
 		r.SetProjectionMat(getProjectionMatrix(45, 1, 0.1, 50))
 
 		r.Draw()
-
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go drawColor(winWidth, winHeight, &r, winColor, &wg)
-		wg.Add(1)
-		go drawDepth(winWidth, winHeight, &r, winDepth, &wg)
-		wg.Wait()
+		drawColor(winWidth, winHeight, &r, winColor)
 
 		if winColor.Pressed(pixelgl.KeyA) {
 			angle--
@@ -132,22 +128,14 @@ func run() {
 	}
 }
 
-func drawColor(winWidth, winHeight int, r *rasterizer.Rasterizer, win *pixelgl.Window, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	frame := r.GetFrameBuf()
-	maxInd := winWidth * winHeight
+func drawColor(winWidth, winHeight int, r *rasterizer.Rasterizer, win *pixelgl.Window) {
+	var wg sync.WaitGroup
 	img := image.NewRGBA(image.Rect(0, 0, winWidth, winHeight))
 	for i := 0; i < winWidth; i++ {
-		for j := 0; j < winHeight; j++ {
-			ind := r.GetFrameInd(i, j)
-			if ind >= maxInd {
-				continue
-			}
-			frameColor := frame[ind].GetColor()
-			img.Set(i, j, color.RGBA{uint8(frameColor[0]), uint8(frameColor[1]), uint8(frameColor[2]), uint8(frameColor[3])})
-		}
+		wg.Add(1)
+		drawColorCol(i, winHeight, r, img, &wg)
 	}
+	wg.Wait()
 
 	pic := pixel.PictureDataFromImage(img)
 	sprite := pixel.NewSprite(pic, pic.Bounds())
@@ -155,27 +143,18 @@ func drawColor(winWidth, winHeight int, r *rasterizer.Rasterizer, win *pixelgl.W
 	win.Update()
 }
 
-func drawDepth(winWidth, winHeight int, r *rasterizer.Rasterizer, win *pixelgl.Window, wg *sync.WaitGroup) {
+func drawColorCol(i, winHeight int, r *rasterizer.Rasterizer, img *image.RGBA, wg *sync.WaitGroup) {
 	defer wg.Done()
-
-	frame := r.GetFrameBuf()
-	maxInd := winWidth * winHeight
-	img := image.NewRGBA(image.Rect(0, 0, winWidth, winHeight))
-	for i := 0; i < winWidth; i++ {
-		for j := 0; j < winHeight; j++ {
-			ind := r.GetFrameInd(i, j)
-			if ind >= maxInd {
-				continue
-			}
-			depth := uint8(frame[ind].GetDepth() * 255)
-			img.Set(i, j, color.RGBA{depth, depth, depth, 255})
-		}
+	frameBuf := r.GetFrameBuf()
+	for j := 0; j < winHeight; j++ {
+		ind := (r.GetFrameInd(i, j)) << 2
+		frameColor := common.Vec4i{
+			(frameBuf[ind].GetColor()[0] + frameBuf[ind+1].GetColor()[0] + frameBuf[ind+2].GetColor()[0] + frameBuf[ind+3].GetColor()[0]) >> 2,
+			(frameBuf[ind].GetColor()[1] + frameBuf[ind+1].GetColor()[1] + frameBuf[ind+2].GetColor()[1] + frameBuf[ind+3].GetColor()[1]) >> 2,
+			(frameBuf[ind].GetColor()[2] + frameBuf[ind+1].GetColor()[2] + frameBuf[ind+2].GetColor()[2] + frameBuf[ind+3].GetColor()[2]) >> 2,
+			(frameBuf[ind].GetColor()[3] + frameBuf[ind+1].GetColor()[3] + frameBuf[ind+2].GetColor()[3] + frameBuf[ind+3].GetColor()[3]) >> 2}
+		img.Set(i, j, color.RGBA{uint8(frameColor[0]), uint8(frameColor[1]), uint8(frameColor[2]), uint8(frameColor[3])})
 	}
-
-	pic := pixel.PictureDataFromImage(img)
-	sprite := pixel.NewSprite(pic, pic.Bounds())
-	go sprite.Draw(win, pixel.IM.Moved(win.Bounds().Center()))
-	win.Update()
 }
 
 func main() {
