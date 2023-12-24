@@ -56,7 +56,6 @@ func run() {
 	var winWidth, winHeight int = 700, 700
 	r := rasterizer.NewRasterizer(winWidth, winHeight, rasterizer.TriangleList)
 	eyePos := common.Vec3f{0, 0, 5}
-
 	pos := []common.Vec3f{
 		{2, 0, -2},
 		{0, 2, -2},
@@ -72,33 +71,67 @@ func run() {
 		{185, 217, 238, 255},
 		{185, 217, 238, 255},
 		{185, 217, 238, 255}}
+	/*
+		pos := []common.Vec3f{
+			{1, 0, 1},
+			{-1, 0, 1},
+			{-1, 0, -1},
+			{1, 0, -1},
+			{1, 2, 1},
+			{-1, 2, 1},
+			{-1, 2, -1},
+			{1, 2, -1},
+		}
+		// f, u, b, d, r, l
+		ind := []common.Vec3i{
+			{0, 1, 4},
+			{1, 4, 5},
+			{4, 5, 7},
+			{5, 6, 7},
+			{2, 3, 7},
+			{2, 6, 7},
+			{0, 1, 3},
+			{1, 2, 3},
+			{0, 3, 7},
+			{0, 4, 7},
+			{1, 2, 6},
+			{1, 5, 6}}
+		cols := []common.Vec4i{
+			{255, 0, 0, 255},
+			{255, 0, 0, 255},
+			{0, 255, 0, 255},
+			{0, 255, 0, 255},
+			{0, 0, 255, 255},
+			{0, 0, 255, 255},
+			{255, 255, 0, 255},
+			{255, 255, 0, 255},
+			{255, 0, 255, 255},
+			{255, 0, 255, 255},
+			{0, 255, 255, 255},
+			{0, 255, 255, 255}}
+	*/
 	angle := 0
 	r.SetPrimitive(rasterizer.TriangleList)
 	r.LoadVer(pos, cols)
 	r.LoadInd(ind)
 
 	cfg := pixelgl.WindowConfig{
-		Title:  "Cover",
+		Title:  "Color - FPS: ",
 		Bounds: pixel.R(0, 0, float64(winWidth), float64(winHeight)),
 	}
 	winColor, err := pixelgl.NewWindow(cfg)
 	if err != nil {
 		panic(err)
 	}
-	/*
-		winDepth, err := pixelgl.NewWindow(cfg)
-		if err != nil {
-			panic(err)
-		}
-		winDepth.SetTitle("Depth")
-	*/
 
 	var frameCount int64 = 0
 	startTime := time.Now().UnixMilli()
+	var frameDuration int64
 	for !winColor.Closed() {
 		frameCount++
+
 		r.ClearFrameBuf(rasterizer.COLOR | rasterizer.DEPTH)
-		winColor.SetTitle(fmt.Sprintf("Color - Angle: %.2farc", float64(angle)/100))
+		winColor.SetTitle(fmt.Sprintf("Color - FPS: %.2f", 1000*float64(frameCount)/float64(frameDuration)))
 
 		r.SetModelMat(getModelMatrix(angle))
 		r.SetViewMat(getViewMatrix(eyePos))
@@ -106,7 +139,8 @@ func run() {
 
 		r.Draw()
 		drawColor(winWidth, winHeight, &r, winColor)
-
+		//mousePos := winColor.MousePosition()
+		//fmt.Println(mousePos.X, mousePos.Y)
 		if winColor.Pressed(pixelgl.KeyA) {
 			angle--
 		} else if winColor.Pressed(pixelgl.KeyD) {
@@ -118,7 +152,7 @@ func run() {
 		if angle == -1 {
 			angle = 31415
 		}
-		frameDuration := time.Now().UnixMilli() - startTime
+		frameDuration = time.Now().UnixMilli() - startTime
 		if frameDuration >= 1000 {
 			fmt.Printf("FPS: %.2f\n", 1000*float64(frameCount)/float64(frameDuration))
 			frameCount = 0
@@ -147,6 +181,7 @@ func drawColorCol(i, winHeight int, r *rasterizer.Rasterizer, img *image.RGBA, w
 	defer wg.Done()
 	frameBuf := r.GetFrameBuf()
 	for j := 0; j < winHeight; j++ {
+
 		ind := (r.GetFrameInd(i, j)) << 2
 		frameColor := common.Vec4i{
 			(frameBuf[ind].GetColor()[0] + frameBuf[ind+1].GetColor()[0] + frameBuf[ind+2].GetColor()[0] + frameBuf[ind+3].GetColor()[0]) >> 2,

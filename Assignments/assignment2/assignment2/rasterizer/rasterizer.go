@@ -338,27 +338,35 @@ func (r *Rasterizer) rasterizeTriangleCol(x, minY, maxY int, t *triangle.Triangl
 	defer wg.Done()
 	for y := minY; y < maxY; y++ {
 		v := t.GetVertxs()
-		/*if insideTriangle(float64(x)+0.5, float64(y)+0.5, v) {
-			alpha, beta, gamma := computeBarycentric2D(float64(x), float64(y), v)
-			z_interpolated := (alpha*v[0][2] + beta*v[1][2] + gamma*v[2][2]) / (alpha + beta + gamma)
-			r.setPixel(common.Vec3f{float64(x), float64(y), -z_interpolated}, t.GetColor(0))
-		}*/
+		/*
+			if insideTriangle(float64(x)+0.5, float64(y)+0.5, v) {
+				alpha, beta, gamma := computeBarycentric2D(float64(x), float64(y), v)
+				z_interpolated := (alpha*v[0][2] + beta*v[1][2] + gamma*v[2][2]) / (alpha + beta + gamma)
+				r.setPixel(r.GetFrameInd(x, y), -z_interpolated, t.GetColor(0))
+			}
+		*/
 		// MSAA4
-		alpha, beta, gamma := computeBarycentric2D(float64(x), float64(y), v)
-		z_interpolated := (alpha*v[0][2] + beta*v[1][2] + gamma*v[2][2]) / (alpha + beta + gamma)
 		ind := (r.GetFrameInd(x, y)) << 2
 		color := t.GetColor(0)
 		if insideTriangle(float64(x)+0.25, float64(y)+0.25, v) {
-			r.setPixel(ind, z_interpolated, color)
+			alpha, beta, gamma := computeBarycentric2D(float64(x)+0.25, float64(y)+0.25, v)
+			z_interpolated := (alpha*v[0][2] + beta*v[1][2] + gamma*v[2][2]) / (alpha + beta + gamma)
+			r.setPixel(ind, -z_interpolated, color)
 		}
 		if insideTriangle(float64(x)+0.25, float64(y)+0.75, v) {
-			r.setPixel(ind+1, z_interpolated, color)
+			alpha, beta, gamma := computeBarycentric2D(float64(x)+0.25, float64(y)+0.75, v)
+			z_interpolated := (alpha*v[0][2] + beta*v[1][2] + gamma*v[2][2]) / (alpha + beta + gamma)
+			r.setPixel(ind+1, -z_interpolated, color)
 		}
 		if insideTriangle(float64(x)+0.75, float64(y)+0.25, v) {
-			r.setPixel(ind+2, z_interpolated, color)
+			alpha, beta, gamma := computeBarycentric2D(float64(x)+0.75, float64(y)+0.25, v)
+			z_interpolated := (alpha*v[0][2] + beta*v[1][2] + gamma*v[2][2]) / (alpha + beta + gamma)
+			r.setPixel(ind+2, -z_interpolated, color)
 		}
 		if insideTriangle(float64(x)+0.75, float64(y)+0.75, v) {
-			r.setPixel(ind+3, z_interpolated, color)
+			alpha, beta, gamma := computeBarycentric2D(float64(x)+0.75, float64(y)+0.75, v)
+			z_interpolated := (alpha*v[0][2] + beta*v[1][2] + gamma*v[2][2]) / (alpha + beta + gamma)
+			r.setPixel(ind+3, -z_interpolated, color)
 		}
 	}
 }
