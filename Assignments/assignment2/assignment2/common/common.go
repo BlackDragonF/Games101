@@ -112,3 +112,6 @@ func DenseToVec4f(v *mat.VecDense) (Vec4f, error) {
   return Vec4f{v.AtVec(0), v.AtVec(1), v.AtVec(2), v.AtVec(3)}, nil
 }
 
+func (u Vec3f) Dot(v Vec3f) float64 {
+  return u[0]* v[0]+ u[1]* v[1]+ u[2]* v[2]
+}
